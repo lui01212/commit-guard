@@ -1,0 +1,14 @@
+- id: commit-guard-msg
+  name: commit-guard-msg
+  description: Validate commit message against Conventional Commits standard
+  entry: commit-guard check-msg
+  language: python
+  stages: [commit-msg]
+  always_run: true
+
+- id: commit-guard-files
+  name: commit-guard-files
+  description: Validate staged files for size and sensitive patterns
+  entry: commit-guard check-files --strict
+  language: python
+  stages: [pre-commit]
