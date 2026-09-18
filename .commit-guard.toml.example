@@ -1,0 +1,84 @@
+# commit-guard configuration.
+#
+# Copy this file to `.commit-guard.toml` in your repository root, or move the
+# settings under a `[tool.commit-guard]` table in your `pyproject.toml`.
+#
+# Precedence, lowest to highest:
+#   built-in defaults  <  pyproject.toml  <  .commit-guard.toml  <  CLI flags
+#
+# Discovery walks upward from the current directory to the repository root, so
+# a package inside a monorepo can override the rules set at the top level.
+# Every setting below is optional; the value shown is the default.
+
+# ---------------------------------------------------------------------------
+# Commit message rules
+# ---------------------------------------------------------------------------
+
+# Allowed commit types. Replaces the default list entirely.
+types = [
+    "feat", "fix", "docs", "style", "refactor",
+    "perf", "test", "build", "ci", "chore", "revert",
+]
+
+# Allowed scopes, as in `feat(api): ...`. An empty list allows any scope.
+scopes = []
+
+# Require every commit to carry a scope. Setting this to true with an empty
+# `scopes` list is rejected, since it would reject every possible commit.
+require_scope = false
+
+# Maximum length of the header (the first line).
+max_header_len = 72
+
+# Minimum length of the subject, i.e. the text after `type(scope):`.
+subject_min_len = 3
+
+# Allow the subject to end with a period.
+allow_trailing_period = false
+
+# Maximum length of a body line. 0 disables the check. URLs, git trailers
+# (`Co-Authored-By:`), and indented or quoted lines are always exempt, since
+# those cannot be wrapped without breaking them.
+max_body_line_len = 0
+
+# Skip validation for messages git writes itself: merges, reverts, and the
+# fixup!/squash! markers used by interactive rebase.
+skip_merge_commits = true
+skip_prefixes = ["merge ", "revert ", "fixup!", "squash!", "amend!"]
+
+# ---------------------------------------------------------------------------
+# Staged file rules
+# ---------------------------------------------------------------------------
+
+# Maximum staged blob size, in megabytes.
+max_size_mb = 10.0
+
+# Paths matching any of these regexes are reported as sensitive. Setting this
+# key REPLACES the built-in list; to keep the defaults and add to them, use
+# `extra_sensitive_patterns` below instead.
+#
+# sensitive_patterns = [
+#     "(^|/)\.env($|\..*)",
+#     "(^|/).*\.(pem|pkcs12|pfx|p12|jks|keystore)$",
+#     "(^|/)id_(rsa|dsa|ed25519|ecdsa)($|\..*)",
+#     "(^|/).*(secret|password|credential)s?.*\.(json|ya?ml|txt|ini|cfg)$",
+#     "(^|/)\.(npmrc|pypirc|netrc)$",
+#     "(^|/)\.aws/credentials$",
+#     "(^|/).*\.key$",
+# ]
+
+# Patterns APPENDED to the built-in list. This is usually what you want.
+extra_sensitive_patterns = []
+
+# Paths that look sensitive but are safe to commit. Matched with shell-style
+# globs against both the full path and the file name; an entry ending in `/`
+# exempts a whole directory.
+allowlist = [
+    "*.example",
+    "*.sample",
+    "*.template",
+    "*.dist",
+    ".env.example",
+    ".env.sample",
+    ".env.template",
+]

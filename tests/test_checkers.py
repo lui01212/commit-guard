@@ -4,6 +4,7 @@ Uses Python's standard library unittest (zero dependencies).
 """
 
 import unittest
+
 from commit_guard.checkers import check_commit_message, check_file_path
 
 
@@ -28,7 +29,9 @@ class TestCommitMessageChecker(unittest.TestCase):
     def test_invalid_commit_type(self):
         is_valid, errors = check_commit_message("randomtype: something done")
         self.assertFalse(is_valid)
-        self.assertTrue(any("Unknown commit type" in e or "does not follow" in e for e in errors))
+        self.assertTrue(
+            any("Unknown commit type" in e or "does not follow" in e for e in errors)
+        )
 
     def test_invalid_format(self):
         invalid_samples = [
@@ -63,7 +66,9 @@ class TestFilePathChecker(unittest.TestCase):
         for path in sensitive:
             with self.subTest(path=path):
                 is_valid, issues = check_file_path(path)
-                self.assertFalse(is_valid, f"Expected warning for sensitive file: {path}")
+                self.assertFalse(
+                    is_valid, f"Expected warning for sensitive file: {path}"
+                )
 
     def test_safe_files(self):
         safe = [

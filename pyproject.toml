@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "commit-guard"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Fast, zero-dependency Git commit message and staged file linter."
 readme = "README.md"
 requires-python = ">=3.8"
@@ -47,5 +47,40 @@ Homepage = "https://github.com/lui01212/commit-guard"
 Repository = "https://github.com/lui01212/commit-guard.git"
 Issues = "https://github.com/lui01212/commit-guard/issues"
 
+[tool.hatch.version]
+path = "commit_guard/__init__.py"
+
 [tool.hatch.build.targets.wheel]
 packages = ["commit_guard"]
+
+[project.optional-dependencies]
+# Development tooling only. The runtime dependency list above stays empty on
+# purpose: installing commit-guard must never pull anything in.
+dev = [
+    "ruff==0.6.9",
+    "mypy==1.11.2",
+    "build",
+]
+
+[tool.ruff]
+target-version = "py38"
+line-length = 88
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM"]
+ignore = [
+    # The codebase targets 3.8, so str.format() is used instead of f-strings
+    # throughout; UP032/UP030 would rewrite those, and the explicit "{0}"
+    # indices are a deliberate style choice here. Not a correctness issue.
+    "UP032",
+    "UP030",
+]
+
+[tool.mypy]
+python_version = "3.8"
+files = ["commit_guard"]
+warn_unused_configs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+no_implicit_optional = true
+check_untyped_defs = true

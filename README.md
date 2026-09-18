@@ -82,11 +82,33 @@ Add this to your `.pre-commit-config.yaml`:
 ```yaml
 repos:
   - repo: https://github.com/lui01212/commit-guard
-    rev: v0.1.0
+    rev: v0.2.0
     hooks:
       - id: commit-guard-msg
       - id: commit-guard-files
 ```
+
+---
+
+## ⚙️ Configuration
+
+`commit-guard` works zero-config out of the box, but can be fully customized via `.commit-guard.toml` or `[tool.commit-guard]` in `pyproject.toml`:
+
+```toml
+# .commit-guard.toml
+max_header_len = 72
+require_scope = false
+skip_merge_commits = true
+max_size_mb = 10.0
+
+# Add extra sensitive patterns to protect
+extra_sensitive_patterns = ["*.secret", "*_token.json"]
+
+# Allowlist false-positives
+allowlist = ["*.example", "*.sample", "*.template"]
+```
+
+See [.commit-guard.toml.example](.commit-guard.toml.example) for all available options.
 
 ---
 
