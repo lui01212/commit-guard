@@ -1,7 +1,7 @@
-# commit-guard 🛡️
+# commit-shield 🛡️
 
-[![PyPI version](https://img.shields.io/pypi/v/commit-guard.svg)](https://pypi.org/project/commit-guard/)
-[![Python versions](https://img.shields.io/pypi/pyversions/commit-guard.svg)](https://pypi.org/project/commit-guard/)
+[![PyPI version](https://img.shields.io/pypi/v/commit-shield.svg)](https://pypi.org/project/commit-shield/)
+[![Python versions](https://img.shields.io/pypi/pyversions/commit-shield.svg)](https://pypi.org/project/commit-shield/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Tests](https://github.com/lui01212/commit-guard/actions/workflows/ci.yml/badge.svg)](https://github.com/lui01212/commit-guard/actions)
 [![good first issues](https://img.shields.io/github/issues/lui01212/commit-guard/good%20first%20issue?label=good%20first%20issues&color=7057ff)](https://github.com/lui01212/commit-guard/issues?q=is%3Aissue+state%3Aopen+label%3A%22good+first+issue%22)
@@ -13,7 +13,7 @@ Enforces [Conventional Commits](https://www.conventionalcommits.org/) standards 
 
 ---
 
-## ⚡ Why commit-guard?
+## ⚡ Why commit-shield?
 
 - **Zero dependencies:** Written in pure standard Python. Instant install, lightweight, no massive node_modules or heavy binary dependencies.
 - **Fast:** Runs in milliseconds during `git commit`.
@@ -25,7 +25,7 @@ Enforces [Conventional Commits](https://www.conventionalcommits.org/) standards 
 ## 📦 Installation
 
 ```bash
-pip install commit-guard
+pip install commit-shield
 ```
 
 Or install from source:
