@@ -19,6 +19,7 @@ __all__ = [
     "repo_root",
     "staged_files",
     "staged_blob_size",
+    "staged_diff",
 ]
 
 
@@ -104,3 +105,11 @@ def staged_blob_size(path: str, cwd: Optional[str] = None) -> Optional[int]:
         return int(out.strip())
     except ValueError:
         return None
+
+
+def staged_diff(cwd: Optional[str] = None) -> str:
+    """Return unified diff of staged changes for secret scanning."""
+    try:
+        return run_git(["diff", "--cached", "-U0"], cwd)
+    except GitError:
+        return ""

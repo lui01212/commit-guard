@@ -4,6 +4,7 @@ Supports standalone usage, git hook usage, and pre-commit framework integration.
 """
 
 import argparse
+import json
 import os
 import stat
 import sys
@@ -17,8 +18,11 @@ from commit_guard.gitutil import (
     git_dir,
     is_git_repo,
     staged_blob_size,
+    staged_diff,
     staged_files,
 )
+from commit_guard.secret_scanner import scan_git_diff
+from commit_guard.wizard import run_wizard
 
 EXIT_OK = 0
 EXIT_FAIL = 1
@@ -66,6 +70,15 @@ def cmd_check_msg(args: argparse.Namespace) -> int:
         msg, max_header_len=args.max_header_len, config=config
     )
 
+    if getattr(args, "json", False):
+        res = {
+            "valid": is_valid,
+            "errors": errors,
+            "message": msg.strip(),
+        }
+        print(json.dumps(res, indent=2))
+        return EXIT_OK if is_valid else EXIT_FAIL
+
     if is_valid:
         if not args.quiet:
             print("[commit-guard] Commit message valid. [OK]")
@@ -107,6 +120,7 @@ def cmd_check_files(args: argparse.Namespace) -> int:
         return EXIT_OK
 
     has_issues = False
+    all_issues: List[str] = []
     for path in files_to_check:
         # Prefer the staged blob size: the working tree may have moved on.
         size_bytes = staged_blob_size(path) if from_index else None
@@ -118,12 +132,40 @@ def cmd_check_files(args: argparse.Namespace) -> int:
         )
         if not is_valid:
             has_issues = True
-            for issue in issues:
-                print("[commit-guard] Warning: {0}".format(issue), file=sys.stderr)
+            all_issues.extend(issues)
+            if not getattr(args, "json", False):
+                for issue in issues:
+                    print("[commit-guard] Warning: {0}".format(issue), file=sys.stderr)
+
+    # Content-level secret scan on staged git diff (inspired by git-secrets / gitleaks)
+    secret_issues: List[str] = []
+    if from_index and not getattr(args, "no_secrets", False):
+        diff_text = staged_diff()
+        if diff_text:
+            findings = scan_git_diff(diff_text)
+            for f in findings:
+                msg = f.format_message()
+                secret_issues.append(msg)
+                all_issues.append(msg)
+                has_issues = True
+                if not getattr(args, "json", False):
+                    print(f"[commit-guard] Warning: {msg}", file=sys.stderr)
+
+    if getattr(args, "json", False):
+        payload = {
+            "valid": not has_issues,
+            "issues": all_issues,
+            "secret_issues": secret_issues,
+            "files_checked": len(files_to_check),
+        }
+        print(json.dumps(payload, indent=2))
+        if has_issues and args.strict:
+            return EXIT_FAIL
+        return EXIT_OK
 
     if has_issues and args.strict:
         print(
-            "\n[commit-guard] Aborting commit due to sensitive or oversized "
+            "\n[commit-guard] Aborting commit due to sensitive, secret or oversized "
             "files (strict mode).",
             file=sys.stderr,
         )
@@ -297,6 +339,15 @@ def cmd_uninstall(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+def cmd_wizard(args: argparse.Namespace) -> int:
+    """Run interactive Conventional Commit wizard."""
+    try:
+        config = _resolve_config(args)
+    except ConfigError as exc:
+        return _fail(str(exc))
+    return run_wizard(config=config, dry_run=getattr(args, "dry_run", False))
+
+
 def _add_config_flags(parser: argparse.ArgumentParser) -> None:
     """Flags shared by every validating subcommand."""
     parser.add_argument(
@@ -310,12 +361,15 @@ def _add_config_flags(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "-q", "--quiet", action="store_true", help="Suppress success messages"
     )
+    parser.add_argument(
+        "--json", action="store_true", help="Output machine-readable JSON results"
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="commit-guard",
-        description="Fast, zero-dependency Git commit message and staged file linter.",
+        prog="commit-shield",
+        description="Fast, zero-dependency Git commit message, secret leak and staged file linter.",
     )
     parser.add_argument(
         "--version", action="version", version="%(prog)s {0}".format(__version__)
@@ -323,6 +377,17 @@ def build_parser() -> argparse.ArgumentParser:
 
     subparsers = parser.add_subparsers(dest="subcommand", help="Available subcommands")
 
+    # commit / cz (interactive wizard)
+    p_cz = subparsers.add_parser(
+        "commit", aliases=["cz"], help="Interactive Conventional Commit wizard"
+    )
+    p_cz.add_argument(
+        "--dry-run", action="store_true", help="Generate commit message without committing"
+    )
+    _add_config_flags(p_cz)
+    p_cz.set_defaults(func=cmd_wizard)
+
+    # check-msg
     p_msg = subparsers.add_parser("check-msg", help="Validate commit message format")
     p_msg.add_argument(
         "file", nargs="?", help="Path to commit message file (e.g. .git/COMMIT_EDITMSG)"
@@ -337,8 +402,9 @@ def build_parser() -> argparse.ArgumentParser:
     _add_config_flags(p_msg)
     p_msg.set_defaults(func=cmd_check_msg)
 
+    # check-files / check-staged
     p_files = subparsers.add_parser(
-        "check-files", help="Validate staged files for size and secrets"
+        "check-files", aliases=["check-staged"], help="Validate staged files for size, sensitive patterns and secrets"
     )
     p_files.add_argument(
         "files", nargs="*", help="File paths to inspect (defaults to git staged files)"
@@ -352,7 +418,12 @@ def build_parser() -> argparse.ArgumentParser:
     p_files.add_argument(
         "--strict",
         action="store_true",
-        help="Fail with exit 1 if sensitive files detected",
+        help="Fail with exit 1 if sensitive files or secrets detected",
+    )
+    p_files.add_argument(
+        "--no-secrets",
+        action="store_true",
+        help="Skip scanning staged diffs for hardcoded credentials",
     )
     _add_config_flags(p_files)
     p_files.set_defaults(func=cmd_check_files)
