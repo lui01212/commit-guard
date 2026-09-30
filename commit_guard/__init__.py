@@ -1,5 +1,5 @@
 """
-commit-shield: Lightweight, zero-dependency Git commit message, secret leak and staged file linter.
+commit-shield: Lightweight Git commit message, secret leak and staged file linter.
 """
 
 from commit_guard.checkers import check_commit_message, check_file_path

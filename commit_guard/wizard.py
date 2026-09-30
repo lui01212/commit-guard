@@ -56,7 +56,7 @@ def prompt_text(prompt: str, required: bool = False, default: str = "") -> str:
     """Prompt the user for a text input."""
     suffix = f" (default: {default})" if default else ""
     suffix += " [required]" if required else " [optional, Enter to skip]"
-    
+
     while True:
         try:
             val = input(f"{prompt}{suffix}: ").strip()
@@ -103,10 +103,10 @@ def compose_commit_message(
     """Format components into a standard Conventional Commit string."""
     breaking_mark = "!" if is_breaking else ""
     scope_part = f"({scope})" if scope else ""
-    
+
     # Strip any trailing period from subject
     subject_clean = subject.rstrip(".")
-    
+
     header = f"{commit_type}{scope_part}{breaking_mark}: {subject_clean}"
     sections = [header]
 
@@ -140,17 +140,21 @@ def run_wizard(config: Optional[Config] = None, dry_run: bool = False) -> int:
     print("=" * 60)
 
     # 1. Type
-    commit_type = prompt_choice("Select the type of change you are committing:", COMMIT_TYPES)
+    commit_type = prompt_choice(
+        "Select the type of change you are committing:", COMMIT_TYPES
+    )
 
     # 2. Scope
     scope = prompt_text("Scope of this change (e.g. auth, api, cli, config)")
 
     # 3. Subject
-    subject = prompt_text("Short imperative description (e.g. add google login)", required=True)
+    subject = prompt_text(
+        "Short imperative description (e.g. add google login)", required=True
+    )
 
     # 4. Long Body
     print("\nDetailed body description (optional). Press Enter twice to finish:")
-    body_lines = []
+    body_lines: List[str] = []
     while True:
         try:
             line = input()
@@ -162,7 +166,9 @@ def run_wizard(config: Optional[Config] = None, dry_run: bool = False) -> int:
     body = "\n".join(body_lines).strip()
 
     # 5. Breaking change
-    is_breaking = prompt_yes_no("Are there any BREAKING CHANGES in this commit?", default=False)
+    is_breaking = prompt_yes_no(
+        "Are there any BREAKING CHANGES in this commit?", default=False
+    )
     breaking_desc = ""
     if is_breaking:
         breaking_desc = prompt_text("Describe the breaking changes", required=True)
@@ -200,7 +206,9 @@ def run_wizard(config: Optional[Config] = None, dry_run: bool = False) -> int:
         return 0
 
     # Confirmation
-    confirm = prompt_yes_no("Proceed to commit staged changes with this message?", default=True)
+    confirm = prompt_yes_no(
+        "Proceed to commit staged changes with this message?", default=True
+    )
     if not confirm:
         print("Commit aborted.")
         return 0

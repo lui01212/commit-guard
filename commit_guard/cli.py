@@ -368,8 +368,8 @@ def _add_config_flags(parser: argparse.ArgumentParser) -> None:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="commit-shield",
-        description="Fast, zero-dependency Git commit message, secret leak and staged file linter.",
+        prog="commit-guard",
+        description="Fast Git commit message, secret leak and staged file linter.",
     )
     parser.add_argument(
         "--version", action="version", version="%(prog)s {0}".format(__version__)
@@ -382,7 +382,9 @@ def build_parser() -> argparse.ArgumentParser:
         "commit", aliases=["cz"], help="Interactive Conventional Commit wizard"
     )
     p_cz.add_argument(
-        "--dry-run", action="store_true", help="Generate commit message without committing"
+        "--dry-run",
+        action="store_true",
+        help="Generate commit message without committing",
     )
     _add_config_flags(p_cz)
     p_cz.set_defaults(func=cmd_wizard)
@@ -404,7 +406,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     # check-files / check-staged
     p_files = subparsers.add_parser(
-        "check-files", aliases=["check-staged"], help="Validate staged files for size, sensitive patterns and secrets"
+        "check-files",
+        aliases=["check-staged"],
+        help="Validate staged files for size, sensitive patterns and secrets",
     )
     p_files.add_argument(
         "files", nargs="*", help="File paths to inspect (defaults to git staged files)"

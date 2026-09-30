@@ -4,8 +4,8 @@ Inspired by AWS git-secrets and gitleaks.
 Zero external dependencies.
 """
 
-from dataclasses import dataclass
 import re
+from dataclasses import dataclass
 from typing import List, Optional, Tuple
 
 
@@ -33,49 +33,38 @@ def _mask_secret(secret: str) -> str:
 
 # Precompiled secret detection rules
 SECRET_RULES: List[Tuple[str, re.Pattern]] = [
-    (
-        "AWS Access Key ID",
-        re.compile(r"\b(?:AKIA|ABIA|ACCA|ASIA)[A-Z0-9]{16}\b")
-    ),
+    ("AWS Access Key ID", re.compile(r"\b(?:AKIA|ABIA|ACCA|ASIA)[A-Z0-9]{16}\b")),
     (
         "GitHub Token",
-        re.compile(r"\b(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{36}\b|\bgithub_pat_[A-Za-z0-9_]{82}\b")
+        re.compile(
+            r"\b(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{36}\b|\bgithub_pat_[A-Za-z0-9_]{82}\b"
+        ),
     ),
-    (
-        "OpenAI API Key",
-        re.compile(r"\bsk-[a-zA-Z0-9]{20,64}\b")
-    ),
-    (
-        "Anthropic API Key",
-        re.compile(r"\bsk-ant-[a-zA-Z0-9_\-]{20,128}\b")
-    ),
-    (
-        "Slack Token",
-        re.compile(r"\bxox[baprs](?:-[0-9a-zA-Z]{5,48})+\b")
-    ),
+    ("OpenAI API Key", re.compile(r"\bsk-[a-zA-Z0-9]{20,64}\b")),
+    ("Anthropic API Key", re.compile(r"\bsk-ant-[a-zA-Z0-9_\-]{20,128}\b")),
+    ("Slack Token", re.compile(r"\bxox[baprs](?:-[0-9a-zA-Z]{5,48})+\b")),
     (
         "Stripe Secret / Live Key",
-        re.compile(r"\b(?:sk|pk)_(?:test|live)_[0-9a-zA-Z]{24,34}\b")
+        re.compile(r"\b(?:sk|pk)_(?:test|live)_[0-9a-zA-Z]{24,34}\b"),
     ),
-    (
-        "Google Cloud API Key",
-        re.compile(r"\bAIza[0-9A-Za-z\-_]{35}\b")
-    ),
+    ("Google Cloud API Key", re.compile(r"\bAIza[0-9A-Za-z\-_]{35}\b")),
     (
         "PEM Private Key Header",
-        re.compile(r"-----BEGIN (?:RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----")
+        re.compile(r"-----BEGIN (?:RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----"),
     ),
     (
         "Generic Hardcoded Password / Secret",
         re.compile(
             r"""(?i)(?:[a-zA-Z0-9_\-\.]*(?:password|passwd|secret|api_key|apikey|access_token|auth_token))\s*[:=]\s*['"]([A-Za-z0-9_\-!@#$%^&*()+=]{8,})['"]"""
-        )
+        ),
     ),
 ]
 
 # Patterns that indicate false positives / test dummies / placeholders
 ALLOWLIST_PATTERNS = [
-    re.compile(r"(?i)(?:example|placeholder|dummy|test_fake|<YOUR_|fake_|YOUR_KEY|REPLACE_ME)"),
+    re.compile(
+        r"(?i)(?:example|placeholder|dummy|test_fake|<YOUR_|fake_|YOUR_KEY|REPLACE_ME)"
+    ),
     re.compile(r"AKIAIOSFODNN7EXAMPLE"),
 ]
 
