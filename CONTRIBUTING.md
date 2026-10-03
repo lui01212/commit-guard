@@ -1,38 +1,55 @@
 # Contributing to commit-guard
 
-Welcome! We are excited to have you contribute to **commit-guard**.
+Thanks for taking a look! Small, focused contributions are welcome.
 
----
+## Start with one small issue
 
-## 🌟 Good First Issues
+[Our featured beginner issue](https://github.com/lui01212/commit-guard/issues/8): Add regression tests for multiline commit messages.
+It lists the exact files, expected output or test cases, and completion criteria.
 
-Looking for your first contribution? Check our [open issues with label `good first issue`](https://github.com/lui01212/commit-guard/issues?q=is%3Aissue+state%3Aopen+label%3A%22good+first+issue%22). Common beginner tasks include:
-- Adding new sensitive file patterns to `commit_guard/checkers.py`.
-- Adding unit test cases for edge-case commit messages.
-- Improving documentation or translation of error messages.
+Comment if you would like to work on it and wait for assignment before starting.
+Respect existing assignments. Ask questions before expanding the scope; a draft PR
+is welcome for early feedback. Assignment and passing tests do not guarantee a merge.
 
----
+## Local setup
 
-## 🛠️ Development Setup
+Use Python 3.8 or newer. Fork the repository, then clone your fork:
 
-1. **Fork and clone:**
-   ```bash
-   git clone https://github.com/<your-username>/commit-guard.git
-   cd commit-guard
-   ```
+```sh
+git clone https://github.com/YOUR-USERNAME/commit-guard.git
+cd commit-guard
+git switch -c docs/your-change
+python -m unittest discover -s tests -v
+```
 
-2. **Zero-dependency philosophy:**
-   This project relies exclusively on Python standard libraries! No heavy third-party packages are required.
+The runtime uses the Python standard library. Tests can run from the source checkout
+without installing the package. Packaging, lint, and CI tools have their own dependencies.
+For installed CLI commands, use a virtual environment and `python -m pip install -e .`;
+review the packaging configuration before installing.
 
-3. **Running tests:**
-   Run the test suite using Python's built-in `unittest`:
-   ```bash
-   python -m unittest discover tests
-   ```
+Repository: `commit-guard`; PyPI distribution: `commit-shield`; Python import: `commit_guard`.
+Both commit-shield and commit-guard are installed CLI aliases.
 
-4. **Making changes:**
-   - Create a branch: `git checkout -b feature/your-feature-name`
-   - Write tests for your changes in `tests/test_checkers.py`.
-   - Run tests to ensure everything passes: `python -m unittest`
-   - Commit with Conventional Commits: `git commit -m "feat(checker): add regex check for api keys"`
-   - Push and open a Pull Request!
+Review code before running it. Use synthetic data in examples. Avoid credentials,
+private files, hook installation, or AI client configuration changes unless required
+by the task.
+
+## Submit a focused PR
+
+- Link the issue and explain the change.
+- Keep unrelated cleanup out of the diff.
+- Add or update tests when behavior changes; include commands and outcomes.
+- For documentation, run the snippets and check the links.
+- Use a Conventional Commit message, for example `docs: clarify first local example`.
+- Push your branch to your fork and open a PR, or a draft PR for early feedback.
+
+Maintainers review scope, correctness, validation, and privacy before merging.
+Respond to review comments in the PR; there is no guaranteed review time.
+Contributions are credited through GitHub PR authorship, commit history, and the
+[contributors page](https://github.com/lui01212/commit-guard/graphs/contributors).
+
+## Larger contributions
+
+Issues labelled `help wanted` can need design discussion and more testing.
+Discuss the scope before starting; documentation and test-only issues are the
+recommended starting point.

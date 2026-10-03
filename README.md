@@ -5,11 +5,33 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Tests](https://github.com/lui01212/commit-guard/actions/workflows/ci.yml/badge.svg)](https://github.com/lui01212/commit-guard/actions)
 [![good first issues](https://img.shields.io/github/issues/lui01212/commit-guard/good%20first%20issue?label=good%20first%20issues&color=7057ff)](https://github.com/lui01212/commit-guard/issues?q=is%3Aissue+state%3Aopen+label%3A%22good+first+issue%22)
-[![Hacktoberfest](https://img.shields.io/badge/Hacktoberfest-2024-ff7a59?logo=hacktoberfest)](https://hacktoberfest.com/)
+[![Contributions welcome](https://img.shields.io/badge/contributions-welcome-7057ff)](CONTRIBUTING.md)
 
 **Fast, zero-dependency Git commit message and staged file linter.**
 
 Enforces [Conventional Commits](https://www.conventionalcommits.org/) standards and guards against accidental commits of secrets (`.env`, `.pem`, `id_rsa`) or oversized files (> 10MB).
+
+## Start here: your first contribution
+
+**[Featured beginner issue #8](https://github.com/lui01212/commit-guard/issues/8)**: Add regression tests for multiline commit messages.
+Read [CONTRIBUTING.md](CONTRIBUTING.md) for setup, claiming an issue, and opening a draft PR.
+
+Repository: `commit-guard`; PyPI distribution: `commit-shield`; Python import: `commit_guard`.
+Both commit-shield and commit-guard are installed CLI aliases.
+
+Try this from a reviewed source checkout, in the repository root, with Python 3.8+.
+It uses synthetic inputs and needs no API key or network access:
+
+```python
+from commit_guard.checkers import check_commit_message
+print(check_commit_message("feat: add example"))
+```
+
+Expected output:
+
+```text
+(True, [])
+```
 
 ---
 
