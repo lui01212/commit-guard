@@ -118,7 +118,7 @@ Add this to your `.pre-commit-config.yaml`:
 ```yaml
 repos:
   - repo: https://github.com/lui01212/commit-guard
-    rev: v0.3.1
+    rev: v0.4.0
     hooks:
       - id: commit-guard-msg
       - id: commit-guard-files
