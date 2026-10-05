@@ -10,6 +10,9 @@ from commit_guard.checkers import check_commit_message
 from commit_guard.config import Config
 from commit_guard.gitutil import run_git
 
+# Output stays ASCII: a Windows console or a redirected stdout may not be able
+# to encode anything else, and an emoji there crashes the wizard.
+
 COMMIT_TYPES: List[Tuple[str, str]] = [
     ("feat", "A new feature for the user or system"),
     ("fix", "A bug fix"),
@@ -25,31 +28,53 @@ COMMIT_TYPES: List[Tuple[str, str]] = [
 ]
 
 
-def prompt_choice(prompt: str, choices: List[Tuple[str, str]]) -> str:
-    """Display a numbered menu and prompt the user to select one."""
+def prompt_choice(
+    prompt: str,
+    choices: List[Tuple[str, str]],
+    label: str = "type",
+    allow_empty: bool = False,
+) -> str:
+    """
+    Display a numbered menu and prompt the user to select one.
+
+    With ``allow_empty`` an empty answer is accepted and returned as "".
+    """
     print(f"\n{prompt}\n")
     for idx, (code, desc) in enumerate(choices, start=1):
-        print(f"  [{idx:2d}] {code:10s} - {desc}")
+        print(f"  [{idx:2d}] {code:10s} - {desc}" if desc else f"  [{idx:2d}] {code}")
     print()
 
+    hint = f"1-{len(choices)}"
+    if allow_empty:
+        hint += ", Enter to skip"
     while True:
         try:
-            raw = input("Select type (1-11): ").strip()
+            raw = input(f"Select {label} ({hint}): ").strip()
         except (EOFError, KeyboardInterrupt):
             print("\nAborted.")
             sys.exit(1)
 
+        if not raw and allow_empty:
+            return ""
         if raw.isdigit():
             val = int(raw)
             if 1 <= val <= len(choices):
                 return choices[val - 1][0]
         else:
             # User typed the code name directly
-            matching = [c for c, _ in choices if c == raw.lower()]
+            matching = [c for c, _ in choices if c == raw or c == raw.lower()]
             if matching:
                 return matching[0]
 
         print(f"Invalid selection. Please enter a number between 1 and {len(choices)}.")
+
+
+def type_choices(config: Config) -> List[Tuple[str, str]]:
+    """The configured commit types, built-in ones first and described."""
+    known = dict(COMMIT_TYPES)
+    ordered = [code for code, _ in COMMIT_TYPES if code in config.types]
+    ordered += sorted(code for code in config.types if code not in known)
+    return [(code, known.get(code, "")) for code in ordered]
 
 
 def prompt_text(prompt: str, required: bool = False, default: str = "") -> str:
@@ -135,17 +160,27 @@ def run_wizard(config: Optional[Config] = None, dry_run: bool = False) -> int:
     """
     Run interactive wizard in terminal to construct and execute a Conventional Commit.
     """
+    cfg = config if config is not None else Config()
+
     print("\n" + "=" * 60)
-    print("🛡️  commit-shield: Interactive Conventional Commit Wizard")
+    print("commit-shield: Interactive Conventional Commit Wizard")
     print("=" * 60)
 
     # 1. Type
     commit_type = prompt_choice(
-        "Select the type of change you are committing:", COMMIT_TYPES
+        "Select the type of change you are committing:", type_choices(cfg)
     )
 
     # 2. Scope
-    scope = prompt_text("Scope of this change (e.g. auth, api, cli, config)")
+    if cfg.scopes:
+        scope = prompt_choice(
+            "Select the scope of this change:",
+            [(name, "") for name in sorted(cfg.scopes)],
+            label="scope",
+            allow_empty=not cfg.require_scope,
+        )
+    else:
+        scope = prompt_text("Scope of this change (e.g. auth, api, cli, config)")
 
     # 3. Subject
     subject = prompt_text(
@@ -158,8 +193,11 @@ def run_wizard(config: Optional[Config] = None, dry_run: bool = False) -> int:
     while True:
         try:
             line = input()
-        except (EOFError, KeyboardInterrupt):
+        except EOFError:
             break
+        except KeyboardInterrupt:
+            print("\nAborted.")
+            sys.exit(1)
         if not line and (not body_lines or not body_lines[-1]):
             break
         body_lines.append(line)
@@ -188,7 +226,7 @@ def run_wizard(config: Optional[Config] = None, dry_run: bool = False) -> int:
     )
 
     # Validate composed message
-    valid, errors = check_commit_message(commit_msg, config=config)
+    valid, errors = check_commit_message(commit_msg, config=cfg)
     print("\n" + "-" * 60)
     print("Generated Commit Message:")
     print("-" * 60)
@@ -196,7 +234,7 @@ def run_wizard(config: Optional[Config] = None, dry_run: bool = False) -> int:
     print("-" * 60)
 
     if not valid:
-        print("\n❌ Warning: Composed message failed validation:", file=sys.stderr)
+        print("\n[!] Warning: Composed message failed validation:", file=sys.stderr)
         for err in errors:
             print(f"  - {err}", file=sys.stderr)
         print()
@@ -215,8 +253,8 @@ def run_wizard(config: Optional[Config] = None, dry_run: bool = False) -> int:
 
     try:
         run_git(["commit", "-m", commit_msg])
-        print("✅ Commit created successfully!")
+        print("[OK] Commit created successfully!")
         return 0
     except Exception as e:
-        print(f"❌ Git commit failed: {e}", file=sys.stderr)
+        print(f"[!] Git commit failed: {e}", file=sys.stderr)
         return 1

@@ -88,13 +88,26 @@ Output:
 commit-guard check-files --strict
 ```
 
+Inside a git repository the staged content is always scanned for secrets. When
+file paths are given (as the `pre-commit` framework does), the scan covers the
+staged changes of those files only.
+
 ### 3. One-Click Git Hook Setup (No pre-commit framework needed)
 
-Install the hook directly into your local `.git/hooks/commit-msg`:
+Install a `commit-msg` hook (message format) and a `pre-commit` hook
+(`check-files --strict`) into the repository's hooks directory:
 
 ```bash
 commit-guard install
+
+# Only the commit-msg hook
+commit-guard install --msg-only
 ```
+
+If `core.hooksPath` is set (husky, lefthook and similar tools), `install`
+refuses rather than writing hooks git would never run. Call
+`commit-guard check-msg "$1"` and `commit-guard check-files --strict` from that
+tool's hooks instead.
 
 ---
 
@@ -105,7 +118,7 @@ Add this to your `.pre-commit-config.yaml`:
 ```yaml
 repos:
   - repo: https://github.com/lui01212/commit-guard
-    rev: v0.2.0
+    rev: v0.3.1
     hooks:
       - id: commit-guard-msg
       - id: commit-guard-files
@@ -124,12 +137,17 @@ require_scope = false
 skip_merge_commits = true
 max_size_mb = 10.0
 
-# Add extra sensitive patterns to protect
-extra_sensitive_patterns = ["*.secret", "*_token.json"]
+# Add extra sensitive file patterns. These are regular expressions matched
+# against the path; single quotes keep the backslashes literal.
+extra_sensitive_patterns = ['\.secret$', '_token\.json$']
 
-# Allowlist false-positives
+# Allowlist false-positives (shell-style globs)
 allowlist = ["*.example", "*.sample", "*.template"]
 ```
+
+Configuration is looked up from the current directory upward to the repository
+root. Git runs hooks from the repository root, so put the file there; a file in
+a subdirectory only applies when you run `commit-guard` by hand from inside it.
 
 See [.commit-guard.toml.example](.commit-guard.toml.example) for all available options.
 

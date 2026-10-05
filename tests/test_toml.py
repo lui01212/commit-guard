@@ -6,6 +6,7 @@ configuration files actually use, so every case here is checked against both
 code paths when tomllib is available.
 """
 
+import os
 import unittest
 
 from commit_guard import _toml
@@ -113,6 +114,108 @@ class TestFallbackErrors(unittest.TestCase):
     def test_loads_wraps_parse_errors_as_tomlerror(self):
         with self.assertRaises(TomlError):
             loads("[[[not valid\n")
+
+
+REPO_PYPROJECT = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "pyproject.toml"
+)
+
+REALISTIC_PYPROJECT = '''\
+[build-system]
+requires = ["hatchling>=1.18"]
+build-backend = "hatchling.build"
+
+[project]
+name = "demo"
+version = "1.0.0"
+description = """
+A demo package \\
+  with a long description."""
+license = { text = "MIT" }
+authors = [
+    { name = "A. Author", email = "a@example.com" },
+    { name = 'B "Quoted" Author' },
+]
+dependencies = []  # none
+
+[project.urls]
+"Bug Tracker" = "https://example.com/issues#new"
+
+[[tool.mypy.overrides]]
+module = ["tests.*", 'scripts.*']
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = "vendored"
+follow_imports = "skip"
+
+[tool.pytest.ini_options]
+addopts = '-ra --strict-markers'
+filterwarnings = [
+    "error",  # trailing comment
+    'ignore:.*deprecated.*:DeprecationWarning',
+]
+timeout = 1_000
+ratio = 0.5
+mask = 0xff
+released = 2024-01-02
+
+[tool.commit-guard]
+max_header_len = 80
+skip_prefixes = ["a\\"b # c", "wip"]  # not a comment inside the string
+'''
+
+
+class TestRealisticFiles(unittest.TestCase):
+    def assert_agree(self, text):
+        stdlib, fallback = _both(text)
+        if stdlib is not None:
+            self.assertEqual(stdlib, fallback)
+        return fallback
+
+    @unittest.skipUnless(os.path.isfile(REPO_PYPROJECT), "no pyproject.toml here")
+    def test_this_repository_pyproject(self):
+        with open(REPO_PYPROJECT, encoding="utf-8") as handle:
+            result = self.assert_agree(handle.read())
+        self.assertEqual(result["project"]["license"], {"text": "MIT"})
+        self.assertEqual(result["project"]["name"], "commit-shield")
+
+    def test_realistic_pyproject(self):
+        result = self.assert_agree(REALISTIC_PYPROJECT)
+        self.assertEqual(result["tool"]["commit-guard"]["max_header_len"], 80)
+        self.assertEqual(
+            result["tool"]["commit-guard"]["skip_prefixes"], ['a"b # c', "wip"]
+        )
+        overrides = result["tool"]["mypy"]["overrides"]
+        self.assertEqual(len(overrides), 2)
+        self.assertEqual(overrides[1]["module"], "vendored")
+        self.assertEqual(result["project"]["authors"][1]["name"], 'B "Quoted" Author')
+        self.assertEqual(
+            result["project"]["description"], "A demo package with a long description."
+        )
+
+    def test_hash_after_escaped_quote_is_not_a_comment(self):
+        result = self.assert_agree('patterns = ["a\\"b # c"]  # real comment\n')
+        self.assertEqual(result["patterns"], ['a"b # c'])
+
+    def test_crlf_line_endings(self):
+        text = '[tool.commit-guard]\r\ntypes = [\r\n  "feat",\r\n]\r\n'
+        result = self.assert_agree(text)
+        self.assertEqual(result["tool"]["commit-guard"]["types"], ["feat"])
+
+
+class TestFallbackStrictness(unittest.TestCase):
+    def test_duplicate_key(self):
+        with self.assertRaises(TomlError):
+            _fallback("n = 1\nn = 2\n")
+
+    def test_table_defined_twice(self):
+        with self.assertRaises(TomlError):
+            _fallback("[a]\nx = 1\n[a]\ny = 2\n")
+
+    def test_newline_inside_inline_table(self):
+        with self.assertRaises(TomlError):
+            _fallback("t = { a = 1,\n b = 2 }\n")
 
 
 if __name__ == "__main__":

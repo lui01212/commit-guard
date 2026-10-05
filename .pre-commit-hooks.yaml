@@ -8,7 +8,7 @@
 
 - id: commit-guard-files
   name: commit-guard-files
-  description: Validate staged files for size and sensitive patterns
+  description: Validate staged files for size, sensitive names and secrets in their content
   entry: commit-guard check-files --strict
   language: python
   stages: [pre-commit]

@@ -6,8 +6,10 @@
 # Precedence, lowest to highest:
 #   built-in defaults  <  pyproject.toml  <  .commit-guard.toml  <  CLI flags
 #
-# Discovery walks upward from the current directory to the repository root, so
-# a package inside a monorepo can override the rules set at the top level.
+# Discovery walks upward from the current directory to the repository root.
+# Git runs hooks from the repository root, so hooks only read the files there;
+# a file in a subdirectory applies only when commit-guard is run by hand from
+# inside that directory.
 # Every setting below is optional; the value shown is the default.
 
 # ---------------------------------------------------------------------------
@@ -55,19 +57,22 @@ max_size_mb = 10.0
 
 # Paths matching any of these regexes are reported as sensitive. Setting this
 # key REPLACES the built-in list; to keep the defaults and add to them, use
-# `extra_sensitive_patterns` below instead.
+# `extra_sensitive_patterns` below instead. Write patterns as single-quoted
+# literal strings so backslashes are kept as they are. An invalid regex is a
+# configuration error.
 #
 # sensitive_patterns = [
-#     "(^|/)\.env($|\..*)",
-#     "(^|/).*\.(pem|pkcs12|pfx|p12|jks|keystore)$",
-#     "(^|/)id_(rsa|dsa|ed25519|ecdsa)($|\..*)",
-#     "(^|/).*(secret|password|credential)s?.*\.(json|ya?ml|txt|ini|cfg)$",
-#     "(^|/)\.(npmrc|pypirc|netrc)$",
-#     "(^|/)\.aws/credentials$",
-#     "(^|/).*\.key$",
+#     '(^|/)\.env($|\..*)',
+#     '(^|/).*\.(pem|pkcs12|pfx|p12|jks|keystore)$',
+#     '(^|/)id_(rsa|dsa|ed25519|ecdsa)($|\..*)',
+#     '(^|/).*(secret|password|credential)s?.*\.(json|ya?ml|txt|ini|cfg)$',
+#     '(^|/)\.(npmrc|pypirc|netrc)$',
+#     '(^|/)\.aws/credentials$',
+#     '(^|/).*\.key$',
 # ]
 
-# Patterns APPENDED to the built-in list. This is usually what you want.
+# Regexes APPENDED to the built-in list. This is usually what you want.
+# For example: extra_sensitive_patterns = ['\.secret$', '_token\.json$']
 extra_sensitive_patterns = []
 
 # Paths that look sensitive but are safe to commit. Matched with shell-style

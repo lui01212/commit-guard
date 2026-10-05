@@ -5,11 +5,15 @@ Every test builds a throwaway directory tree so nothing depends on the
 repository this suite happens to run inside.
 """
 
+import contextlib
+import io
 import os
 import shutil
 import tempfile
 import unittest
+from unittest import mock
 
+from commit_guard import _toml
 from commit_guard.config import (
     DEFAULT_ALLOWLIST,
     DEFAULT_SENSITIVE_PATTERNS,
@@ -257,6 +261,99 @@ class TestSemanticErrors(_TempTree):
         self.write(".commit-guard.toml", "not toml at all\n")
         with self.assertRaises(ConfigError):
             load_config(start_dir=self.root)
+
+
+class TestPatternValidation(_TempTree):
+    def test_invalid_regex_is_a_load_time_error(self):
+        # The README once suggested globs, which are not valid regexes.
+        self.write(".commit-guard.toml", 'extra_sensitive_patterns = ["*.secret"]\n')
+        with self.assertRaises(ConfigError) as ctx:
+            load_config(start_dir=self.root)
+        message = str(ctx.exception)
+        self.assertIn("*.secret", message)
+        self.assertIn("extra_sensitive_patterns", message)
+        self.assertIn("not globs", message)
+
+    def test_invalid_replacement_pattern_is_rejected_too(self):
+        self.write(".commit-guard.toml", 'sensitive_patterns = ["(unclosed"]\n')
+        with self.assertRaises(ConfigError):
+            load_config(start_dir=self.root)
+
+    def test_readme_style_literal_regexes_load(self):
+        self.write(
+            ".commit-guard.toml",
+            "extra_sensitive_patterns = ['\\.secret$', '_token\\.json$']\n",
+        )
+        config = load_config(start_dir=self.root)
+        self.assertIn(r"\.secret$", config.sensitive_patterns)
+
+
+class TestStandaloneTables(_TempTree):
+    def test_tool_table_in_standalone_file_is_honoured(self):
+        self.write(".commit-guard.toml", "[tool.commit-guard]\nmax_header_len = 61\n")
+        config = load_config(start_dir=self.root)
+        self.assertEqual(config.max_header_len, 61)
+
+    def test_unknown_key_inside_tool_table_is_reported(self):
+        self.write(".commit-guard.toml", "[tool.commit-guard]\ntypoed_key = 1\n")
+        with self.assertRaises(ConfigError) as ctx:
+            load_config(start_dir=self.root)
+        self.assertIn("typoed_key", str(ctx.exception))
+
+    def test_other_tables_are_reported_not_ignored(self):
+        for text in (
+            "[tool.other]\nmax_header_len = 50\n",
+            "[settings]\nmax_header_len = 50\n",
+            "[commit-guard.nested]\nmax_header_len = 50\n",
+        ):
+            with self.subTest(text=text):
+                self.write(".commit-guard.toml", text)
+                with self.assertRaises(ConfigError):
+                    load_config(start_dir=self.root)
+
+
+class TestBrokenPyprojectWarning(_TempTree):
+    def load_capturing_stderr(self):
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            config = load_config(start_dir=self.root)
+        return config, err.getvalue()
+
+    def test_warns_when_a_broken_file_mentions_commit_guard(self):
+        self.write("pyproject.toml", "[tool.commit-guard]\nmax_header_len = = 9\n")
+        config, err = self.load_capturing_stderr()
+        self.assertEqual(config.max_header_len, 72)
+        self.assertIn("warning", err.lower())
+        self.assertIn("pyproject.toml", err)
+
+    def test_silent_when_the_broken_file_is_not_ours(self):
+        self.write("pyproject.toml", "[[[ not valid toml\n")
+        _, err = self.load_capturing_stderr()
+        self.assertEqual(err, "")
+
+
+class TestFallbackParserDiscovery(_TempTree):
+    """Python 3.8-3.10 read configuration with the bundled parser."""
+
+    PYPROJECT = (
+        "[project]\n"
+        'name = "demo"\n'
+        'license = { text = "MIT" }\n'
+        'authors = [{ name = "A", email = "a@example.com" }]\n'
+        "\n"
+        "[[tool.mypy.overrides]]\n"
+        'module = ["tests.*"]\n'
+        "ignore_errors = true\n"
+        "\n"
+        "[tool.commit-guard]\n"
+        "max_header_len = 64\n"
+    )
+
+    def test_realistic_pyproject_is_honoured_without_tomllib(self):
+        self.write("pyproject.toml", self.PYPROJECT)
+        with mock.patch.object(_toml, "_tomllib", None):
+            config = load_config(start_dir=self.root)
+        self.assertEqual(config.max_header_len, 64)
 
 
 if __name__ == "__main__":

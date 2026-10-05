@@ -8,15 +8,18 @@ import json
 import os
 import stat
 import sys
-from typing import List, Optional
+from typing import List, Optional, Set
 
 from commit_guard import __version__
 from commit_guard.checkers import check_commit_message, check_file_path
 from commit_guard.config import Config, ConfigError, load_config
 from commit_guard.gitutil import (
     GitError,
+    git_config,
     git_dir,
+    hooks_dir,
     is_git_repo,
+    repo_root,
     staged_blob_size,
     staged_diff,
     staged_files,
@@ -31,6 +34,9 @@ EXIT_FAIL = 1
 EXIT_ERROR = 2
 
 HOOK_MARKER = "# commit-guard automatic hook"
+# Names the backup an install made of a foreign hook, so that uninstall
+# restores that file and never one commit-guard did not create.
+BACKUP_MARKER = "# commit-guard-backup:"
 
 
 def _resolve_config(args: argparse.Namespace) -> Config:
@@ -114,11 +120,6 @@ def cmd_check_files(args: argparse.Namespace) -> int:
         except GitError as exc:
             return _fail("{0}\nRun with explicit file paths to skip git.".format(exc))
 
-    if not files_to_check:
-        if not args.quiet:
-            print("[commit-guard] No staged files to check.")
-        return EXIT_OK
-
     has_issues = False
     all_issues: List[str] = []
     for path in files_to_check:
@@ -139,8 +140,14 @@ def cmd_check_files(args: argparse.Namespace) -> int:
 
     # Content-level secret scan on staged git diff (inspired by git-secrets / gitleaks)
     secret_issues: List[str] = []
-    if from_index and not getattr(args, "no_secrets", False):
-        diff_text = staged_diff()
+    if not getattr(args, "no_secrets", False):
+        try:
+            diff_text = _staged_diff_for(None if from_index else files_to_check)
+        except GitError as exc:
+            return _fail(
+                "{0}\nCannot scan staged changes for secrets; use --no-secrets "
+                "to skip the scan.".format(exc)
+            )
         if diff_text:
             findings = scan_git_diff(diff_text)
             for f in findings:
@@ -172,32 +179,115 @@ def cmd_check_files(args: argparse.Namespace) -> int:
         return EXIT_FAIL
 
     if not has_issues and not args.quiet:
-        print(
-            "[commit-guard] Checked {0} file(s). All clean! [OK]".format(
-                len(files_to_check)
+        if not files_to_check:
+            print("[commit-guard] No staged files to check.")
+        else:
+            print(
+                "[commit-guard] Checked {0} file(s). All clean! [OK]".format(
+                    len(files_to_check)
+                )
             )
-        )
 
     return EXIT_OK
 
 
-def _hook_script(command: str) -> str:
+def _staged_diff_for(paths: Optional[List[str]]) -> str:
+    """
+    The staged diff to scan for secrets.
+
+    ``paths`` None means everything staged. Explicit paths (as the pre-commit
+    framework passes them) restrict the diff to those files; paths outside the
+    repository, or any paths when not in a repository at all, have no staged
+    content and are skipped.
+    """
+    if paths is None:
+        return staged_diff()
+    if not is_git_repo():
+        return ""
+    root = repo_root()
+    inside = [rel for rel in (_repo_relative(p, root) for p in paths) if rel]
+    if not inside:
+        # An empty pathspec would mean "everything", not "nothing".
+        return ""
+    return staged_diff(inside, cwd=root)
+
+
+def _repo_relative(path: str, root: str) -> Optional[str]:
+    """``path`` relative to ``root`` with forward slashes, or None if outside."""
+    try:
+        rel = os.path.relpath(os.path.abspath(path), root)
+    except ValueError:  # another drive on Windows
+        return None
+    if rel == os.curdir or rel == os.pardir or rel.startswith(os.pardir + os.sep):
+        return None
+    return rel.replace(os.sep, "/")
+
+
+def _hook_script(command: str, backup: Optional[str] = None) -> str:
     """Build a hook body that calls the interpreter commit-guard runs under."""
     # sys.executable, not a bare "python": the hook must reach the interpreter
     # commit-guard is installed into, which may not be first on PATH (or may
     # not be called "python" at all).
     interpreter = sys.executable.replace("\\", "/") or "python"
-    return (
-        "#!/usr/bin/env sh\n" "{marker}\n" '"{python}" -m commit_guard.cli {command}\n'
-    ).format(marker=HOOK_MARKER, python=interpreter, command=command)
+    lines = ["#!/usr/bin/env sh", HOOK_MARKER]
+    if backup:
+        lines.append("{0} {1}".format(BACKUP_MARKER, backup))
+    lines += [
+        'PYTHON="{0}"'.format(interpreter),
+        'if [ -x "$PYTHON" ]; then',
+        '    exec "$PYTHON" -m commit_guard.cli {0}'.format(command),
+        "fi",
+        "# That interpreter is gone (a deleted virtualenv, an upgraded Python):",
+        "# fall back to a commit-guard on PATH.",
+        "if command -v commit-guard >/dev/null 2>&1; then",
+        "    exec commit-guard {0}".format(command),
+        "fi",
+        'echo "[commit-guard] Error: $PYTHON is missing and commit-guard is not'
+        ' on PATH." >&2',
+        "echo \"[commit-guard] Re-run 'commit-guard install' from the environment"
+        ' commit-guard is installed in." >&2',
+        "exit 1",
+    ]
+    return "\n".join(lines) + "\n"
+
+
+def _read_hook(path: str) -> Optional[str]:
+    try:
+        with open(path, encoding="utf-8", errors="replace") as handle:
+            return handle.read()
+    except OSError:
+        return None
 
 
 def _is_our_hook(path: str) -> bool:
-    try:
-        with open(path, encoding="utf-8", errors="replace") as handle:
-            return HOOK_MARKER in handle.read()
-    except OSError:
-        return False
+    content = _read_hook(path)
+    return content is not None and HOOK_MARKER in content
+
+
+def _recorded_backup(path: str, name: str) -> Optional[str]:
+    """The backup file name our hook at ``path`` recorded, if any."""
+    content = _read_hook(path) or ""
+    for line in content.splitlines():
+        if line.startswith(BACKUP_MARKER):
+            backup = line[len(BACKUP_MARKER) :].strip()
+            # Only a sibling file named after this hook, never another path.
+            if (
+                backup.startswith(name + ".bak")
+                and "/" not in backup
+                and "\\" not in backup
+            ):
+                return backup
+    return None
+
+
+def _free_backup_name(directory: str, name: str) -> str:
+    """<hook>.bak, or <hook>.bak.1, .bak.2, ... if that is already taken."""
+    candidate = name + ".bak"
+    counter = 0
+    while os.path.lexists(os.path.join(directory, candidate)):
+        counter += 1
+        candidate = "{0}.bak.{1}".format(name, counter)
+    return candidate
 
 
 def _describe_foreign_hook(path: str) -> str:
@@ -218,13 +308,16 @@ def _describe_foreign_hook(path: str) -> str:
 
 
 def _install_one(
-    hooks_dir: str, name: str, command: str, force: bool, quiet: bool
+    directory: str, name: str, command: str, force: bool, quiet: bool
 ) -> int:
     """Install a single hook, refusing to destroy anything already there."""
-    target = os.path.join(hooks_dir, name)
-    script = _hook_script(command)
+    target = os.path.join(directory, name)
+    backup_name: Optional[str] = None
 
-    if os.path.exists(target) and not _is_our_hook(target):
+    if os.path.exists(target) and _is_our_hook(target):
+        # Re-installing: keep the record of a backup an earlier install made.
+        backup_name = _recorded_backup(target, name)
+    elif os.path.exists(target):
         if not force:
             print(
                 "[commit-guard] Refusing to overwrite {0} at {1}.\n"
@@ -237,10 +330,10 @@ def _install_one(
             )
             return EXIT_ERROR
 
-        backup = target + ".bak"
+        # Never overwrite an existing backup: pick the next free name.
+        backup_name = _free_backup_name(directory, name)
+        backup = os.path.join(directory, backup_name)
         try:
-            # Replace an older backup rather than failing on Windows, where
-            # os.replace onto an existing path is the only atomic option.
             os.replace(target, backup)
         except OSError as exc:
             print(
@@ -251,6 +344,7 @@ def _install_one(
         if not quiet:
             print("[commit-guard] Existing hook backed up to {0}".format(backup))
 
+    script = _hook_script(command, backup_name)
     try:
         with open(target, "w", encoding="utf-8", newline="\n") as handle:
             handle.write(script)
@@ -270,19 +364,39 @@ def _install_one(
 
 
 def cmd_install(args: argparse.Namespace) -> int:
-    """Install git hooks directly into .git/hooks/."""
+    """Install git hooks into the directory git runs hooks from."""
     if not is_git_repo():
         return _fail("not inside a git working tree")
 
     try:
-        hooks_dir = os.path.join(git_dir(), "hooks")
+        hooks_path = git_config("core.hooksPath")
+        directory = hooks_dir()
     except GitError as exc:
         return _fail(str(exc))
 
+    if hooks_path:
+        # husky, lefthook and friends point core.hooksPath at a directory they
+        # manage; a hook written to .git/hooks would never run.
+        print(
+            "[commit-guard] core.hooksPath is set to '{0}', so git runs the "
+            "hooks in {1}\n"
+            "  (usually managed by husky, lefthook or a similar tool), not "
+            "those in .git/hooks.\n"
+            "  commit-guard will not write into a hooks directory another tool "
+            "manages. Call it from\n"
+            "  that setup instead, for example:\n"
+            '    commit-msg:  commit-guard check-msg "$1"\n'
+            "    pre-commit:  commit-guard check-files --strict\n"
+            "  or run 'git config --unset core.hooksPath' and then "
+            "'commit-guard install' again.".format(hooks_path, directory),
+            file=sys.stderr,
+        )
+        return EXIT_FAIL
+
     try:
-        os.makedirs(hooks_dir, exist_ok=True)
+        os.makedirs(directory, exist_ok=True)
     except OSError as exc:
-        return _fail("cannot create {0}: {1}".format(hooks_dir, exc))
+        return _fail("cannot create {0}: {1}".format(directory, exc))
 
     # commit-msg validates the message; pre-commit guards the staged files.
     planned = [("commit-msg", 'check-msg "$1"')]
@@ -291,7 +405,7 @@ def cmd_install(args: argparse.Namespace) -> int:
 
     status = EXIT_OK
     for name, command in planned:
-        result = _install_one(hooks_dir, name, command, args.force, args.quiet)
+        result = _install_one(directory, name, command, args.force, args.quiet)
         if result != EXIT_OK:
             status = result
 
@@ -300,39 +414,63 @@ def cmd_install(args: argparse.Namespace) -> int:
     return status
 
 
+def _uninstall_dirs() -> List[str]:
+    """Where our hooks can be: git's hooks directory, plus the git directory
+    older versions wrote to, which differs in a linked worktree."""
+    found: List[str] = []
+    seen: Set[str] = set()
+    for directory in (hooks_dir(), os.path.join(git_dir(), "hooks")):
+        key = os.path.normcase(os.path.realpath(directory))
+        if key not in seen:
+            seen.add(key)
+            found.append(directory)
+    return found
+
+
 def cmd_uninstall(args: argparse.Namespace) -> int:
     """Remove commit-guard hooks, restoring any backup we made."""
     if not is_git_repo():
         return _fail("not inside a git working tree")
 
     try:
-        hooks_dir = os.path.join(git_dir(), "hooks")
+        directories = _uninstall_dirs()
     except GitError as exc:
         return _fail(str(exc))
 
     removed = 0
-    for name in ("commit-msg", "pre-commit"):
-        target = os.path.join(hooks_dir, name)
-        if not os.path.exists(target):
-            continue
-        if not _is_our_hook(target):
-            if not args.quiet:
-                print("[commit-guard] Leaving {0} alone (not ours).".format(target))
-            continue
+    for directory in directories:
+        for name in ("commit-msg", "pre-commit"):
+            target = os.path.join(directory, name)
+            if not os.path.exists(target):
+                continue
+            if not _is_our_hook(target):
+                if not args.quiet:
+                    print("[commit-guard] Leaving {0} alone (not ours).".format(target))
+                continue
 
-        backup = target + ".bak"
-        try:
-            if os.path.exists(backup):
-                os.replace(backup, target)
-                if not args.quiet:
-                    print("[commit-guard] Restored previous hook: {0}".format(target))
-            else:
-                os.remove(target)
-                if not args.quiet:
-                    print("[commit-guard] Removed hook: {0}".format(target))
-            removed += 1
-        except OSError as exc:
-            return _fail("cannot remove {0}: {1}".format(target, exc))
+            recorded = _recorded_backup(target, name)
+            backup = os.path.join(directory, recorded) if recorded else None
+            try:
+                if backup is not None and os.path.exists(backup):
+                    os.replace(backup, target)
+                    if not args.quiet:
+                        print(
+                            "[commit-guard] Restored previous hook: {0}".format(target)
+                        )
+                else:
+                    os.remove(target)
+                    if not args.quiet:
+                        print("[commit-guard] Removed hook: {0}".format(target))
+                removed += 1
+            except OSError as exc:
+                return _fail("cannot remove {0}: {1}".format(target, exc))
+
+            stray = target + ".bak"
+            if recorded is None and os.path.exists(stray) and not args.quiet:
+                print(
+                    "[commit-guard] Left {0} in place: this install did not "
+                    "create it.".format(stray)
+                )
 
     if removed == 0 and not args.quiet:
         print("[commit-guard] No commit-guard hooks were installed.")
@@ -433,7 +571,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_files.set_defaults(func=cmd_check_files)
 
     p_inst = subparsers.add_parser(
-        "install", help="Install hook scripts into local .git/hooks/"
+        "install", help="Install commit-msg and pre-commit hooks into this repository"
     )
     p_inst.add_argument(
         "--force",
@@ -451,7 +589,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_inst.set_defaults(func=cmd_install)
 
     p_uninst = subparsers.add_parser(
-        "uninstall", help="Remove commit-guard hooks from local .git/hooks/"
+        "uninstall", help="Remove the hooks commit-guard installed"
     )
     p_uninst.add_argument(
         "-q", "--quiet", action="store_true", help="Suppress success messages"

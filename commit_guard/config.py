@@ -5,16 +5,21 @@ Settings are resolved in order of increasing precedence:
 
 1. built-in defaults
 2. ``[tool.commit-guard]`` in ``pyproject.toml``
-3. ``.commit-guard.toml`` (whole file, or a ``[commit-guard]`` table)
+3. ``.commit-guard.toml`` (whole file, or a ``[commit-guard]`` or
+   ``[tool.commit-guard]`` table)
 4. explicit command-line flags
 
-Discovery walks upwards from the starting directory to the repository root, so
-running ``git commit`` in a subdirectory picks up the project configuration.
+Discovery walks upwards from the current directory to the repository root.
+Git runs hooks from the root of the working tree, so hooks only ever see the
+files at the root; a file in a subdirectory applies only when commit-guard is
+run by hand from inside that directory.
 Unknown keys are reported as errors rather than ignored, so that a typo such as
 ``max_header_length`` does not silently leave the default in place.
 """
 
 import os
+import re
+import sys
 from typing import Any, Dict, List, Optional, Sequence, Set
 
 from commit_guard._toml import TomlError, loads
@@ -195,8 +200,8 @@ def _extract_table(data: Dict[str, Any], path: str) -> Optional[Dict[str, Any]]:
     Pull the commit-guard settings table out of one parsed file.
 
     ``pyproject.toml`` must use ``[tool.commit-guard]``. A dedicated
-    ``.commit-guard.toml`` may either use a ``[commit-guard]`` table or place
-    settings at the top level.
+    ``.commit-guard.toml`` may place settings at the top level or in a
+    ``[commit-guard]`` or ``[tool.commit-guard]`` table.
     """
     if os.path.basename(path) == PYPROJECT_FILENAME:
         tool = data.get("tool")
@@ -211,12 +216,25 @@ def _extract_table(data: Dict[str, Any], path: str) -> Optional[Dict[str, Any]]:
             )
         return section
 
-    section = data.get(TOOL_TABLE)
-    if isinstance(section, dict):
-        return section
-    # Top-level settings; drop nested tables so a stray [tool] block in a
-    # standalone config file does not look like a setting.
-    return {k: v for k, v in data.items() if not isinstance(v, dict)}
+    # Top-level settings plus either table. Any other table is kept under its
+    # dotted name, so it is reported as an unknown setting rather than being
+    # silently ignored.
+    settings: Dict[str, Any] = {}
+    tables: List[Dict[str, Any]] = []
+    for key, value in data.items():
+        if key == TOOL_TABLE and isinstance(value, dict):
+            tables.append(value)
+        elif key == "tool" and isinstance(value, dict):
+            for name, inner in value.items():
+                if name == TOOL_TABLE and isinstance(inner, dict):
+                    tables.append(inner)
+                else:
+                    settings["tool." + name] = inner
+        else:
+            settings[key] = value
+    for table in tables:
+        settings.update(table)
+    return settings
 
 
 def _coerce(path: str, key: str, value: Any) -> Any:
@@ -257,11 +275,33 @@ def _coerce(path: str, key: str, value: Any) -> Any:
     )
 
 
+def _check_regex(path: str, key: str, pattern: str) -> None:
+    """Reject an invalid pattern when the file is loaded, not per checked file."""
+    try:
+        re.compile(pattern, re.IGNORECASE)
+    except re.error as exc:
+        hint = ""
+        if pattern.startswith("*"):
+            hint = (
+                " (patterns are regular expressions, not globs:"
+                " write '\\.secret$' rather than '*.secret')"
+            )
+        raise ConfigError(
+            "{0}: invalid regular expression {1!r} in '{2}': {3}{4}".format(
+                path, pattern, key, exc, hint
+            )
+        ) from exc
+
+
 def _apply(config: Config, path: str, section: Dict[str, Any]) -> None:
     """Merge one settings table onto an existing Config in place."""
     values: Dict[str, Any] = {}
     for key, raw in section.items():
         values[key] = _coerce(path, key, raw)
+
+    for key in ("sensitive_patterns", "extra_sensitive_patterns"):
+        for pattern in values.get(key, ()):
+            _check_regex(path, key, pattern)
 
     if "types" in values:
         if not values["types"]:
@@ -330,6 +370,15 @@ def load_config(
             # A broken pyproject.toml is somebody else's problem unless the user
             # pointed us at it; skipping keeps commit-guard usable meanwhile.
             if os.path.basename(path) == PYPROJECT_FILENAME and not config_path:
+                # But say so when the file looks like it configures us.
+                if TOOL_TABLE in text:
+                    print(
+                        "[commit-guard] Warning: cannot parse {0}: {1}; its "
+                        "[tool.{2}] settings are ignored.".format(
+                            path, exc, TOOL_TABLE
+                        ),
+                        file=sys.stderr,
+                    )
                 continue
             raise ConfigError("cannot parse {0}: {1}".format(path, exc)) from exc
 

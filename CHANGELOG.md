@@ -5,6 +5,77 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **The `pre-commit` framework hook now scans file contents for secrets.**
+  `check-files` skipped the secret scan whenever file names were passed, which
+  is how the framework always runs it. Inside a git repository the staged
+  changes are now always scanned, limited to the given files when there are
+  any.
+- **Renamed files are checked.** A staged rename (for example `settings.txt`
+  to `.env`) or a type change was skipped by both the name and the content
+  checks, and a commit with no added or modified files skipped the secret scan.
+- **Git configuration can no longer hide secrets.** `color.ui = always`,
+  `diff.external`, textconv drivers, `diff.noprefix`, `diff.relative` and
+  quoted path names changed the diff output the scanner reads. These are now
+  pinned. A git failure during the scan exits with code 2 instead of passing.
+- **Files marked `-diff` in `.gitattributes` are scanned.** Git hid their
+  content behind "Binary files differ"; real binary files are still skipped.
+- Current key formats are detected: OpenAI project, service-account and admin
+  keys (`sk-proj-...`), Stripe keys longer than 34 characters and restricted
+  `rk_` keys, and Slack `xoxe.xoxp-...` and `xapp-...` tokens. Stripe
+  publishable `pk_` keys are no longer reported, since they are public.
+- Hardcoded passwords are detected in JSON (`"password": "..."`), unquoted YAML
+  and `.env` values, values containing `.` or `/`, and `scheme://user:pass@host`
+  URLs. References such as `${VAR}` and `os.environ[...]` are not reported.
+- A key is no longer ignored because something else on the same line, such as
+  an `example.com` URL or a variable name, looks like a placeholder. Only the
+  value itself is checked.
+- Scanning a long minified line no longer takes seconds (a 20 KB line took
+  about 29 seconds).
+- Findings are attributed to the right file and line for names with quotes or
+  non-ASCII characters, and for added lines that start with `++`.
+- **`install` puts hooks where git runs them.** In a linked worktree the hooks
+  were written to a directory git never reads. When `core.hooksPath` is set
+  (husky, lefthook), `install` now refuses with exit code 1 and explains how to
+  call commit-guard from that setup, instead of reporting success.
+- `uninstall` only restores the backup its own install made, and
+  `install --force` no longer overwrites an existing `.bak`; it uses `.bak.1`,
+  `.bak.2` and so on. A `.bak` without that record, such as one left by an
+  earlier version, is kept in place and reported.
+- The installed hook falls back to `commit-guard` on `PATH` when the recorded
+  Python interpreter no longer exists, and otherwise says to re-run
+  `commit-guard install`.
+- `[tool.commit-guard]` in `pyproject.toml` is read on Python 3.8 to 3.10. The
+  bundled TOML parser rejected inline tables and arrays of tables, so most real
+  `pyproject.toml` files were skipped without a word. A `pyproject.toml` that
+  cannot be parsed now produces a warning when it mentions commit-guard.
+- `git commit -v`: the diff below the scissors line is no longer validated as
+  part of the message.
+- A header that starts with whitespace is rejected with a clear message; git
+  keeps that whitespace in the commit.
+- The `commit` wizard lists the configured `types`, offers the configured
+  `scopes`, uses plain ASCII output (emoji crashed it on some Windows
+  consoles), and aborts without committing on Ctrl-C while typing the body.
+
+### Changed
+
+- An invalid regular expression in `sensitive_patterns` or
+  `extra_sensitive_patterns` is a configuration error (exit code 2) when the
+  file is loaded, rather than a warning on every checked file.
+- A `[tool.commit-guard]` table in `.commit-guard.toml` is accepted like
+  `[commit-guard]`; any other table there is reported as an unknown setting
+  instead of being ignored.
+- Docs: the README configuration example uses regular expressions rather than
+  globs (the glob example made every commit fail), the commented
+  `sensitive_patterns` block in `.commit-guard.toml.example` uses literal
+  strings so it is valid when uncommented, the README describes both hooks
+  `install` writes, and the docs no longer promise per-package configuration in
+  a monorepo: hooks run from the repository root and read the configuration
+  there.
+
 ## [0.3.1] - 2026-10-05
 
 No code changes. This release refreshes the package description on PyPI.
@@ -110,6 +181,7 @@ change the rules without editing the source.
   staged files and oversized blobs, a `commit-msg` hook installer, and
   `pre-commit` framework integration.
 
+[Unreleased]: https://github.com/lui01212/commit-guard/compare/v0.3.1...HEAD
 [0.3.1]: https://github.com/lui01212/commit-guard/releases/tag/v0.3.1
 [0.3.0]: https://github.com/lui01212/commit-guard/releases/tag/v0.3.0
 [0.2.0]: https://github.com/lui01212/commit-guard/releases/tag/v0.2.0

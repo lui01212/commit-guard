@@ -59,6 +59,18 @@ def _first_meaningful_line(msg: str) -> Optional[str]:
     return None
 
 
+_SCISSORS_RE = re.compile(r"^# -+ >8 -+$")
+
+
+def strip_scissors(msg: str) -> str:
+    """Drop everything from git's scissors line ('# ---- >8 ----') onward."""
+    lines = msg.splitlines(keepends=True)
+    for index, line in enumerate(lines):
+        if _SCISSORS_RE.match(line.rstrip("\r\n")):
+            return "".join(lines[:index])
+    return msg
+
+
 def check_commit_message(
     msg: str,
     max_header_len: Optional[int] = None,
@@ -74,15 +86,20 @@ def check_commit_message(
     cfg = _config_or_default(config)
     header_limit = max_header_len if max_header_len is not None else cfg.max_header_len
 
+    # `git commit -v` appends the diff below a scissors line; git discards
+    # everything from that line on, so it is not part of the message.
+    msg = strip_scissors(msg)
+
     # Generated merge/revert/fixup messages are not the author's to format.
     if is_skippable_message(msg, cfg):
         return True, []
 
     errors: List[str] = []
 
-    # Strip comments (lines starting with #) and trailing whitespace
+    # Strip comments (lines starting with #) and trailing whitespace. Leading
+    # whitespace is kept: git keeps it too, so it would end up in the header.
     lines = [
-        line.strip()
+        line.rstrip()
         for line in msg.splitlines()
         if line.strip() and not line.strip().startswith("#")
     ]
@@ -91,6 +108,9 @@ def check_commit_message(
         return False, ["Commit message cannot be empty."]
 
     header = lines[0]
+    if header != header.lstrip():
+        errors.append("Commit header must not start with whitespace.")
+        header = header.lstrip()
 
     if header_limit and len(header) > header_limit:
         errors.append(
