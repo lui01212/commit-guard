@@ -5,6 +5,31 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] - 2026-10-05
+
+No code changes. This release refreshes the package description on PyPI.
+
+### Changed
+
+- README: a "Start here" section for first-time contributors, the outdated
+  Hacktoberfest 2024 badge removed, and absolute links to `CONTRIBUTING.md`
+  and `LICENSE` so they resolve on PyPI.
+
+## [0.3.0] - 2026-09-30
+
+### Added
+
+- `check-files` (alias `check-staged`) scans staged additions for secrets (AWS, GitHub, OpenAI,
+  Anthropic, Slack and Stripe keys, PEM private keys, hardcoded database
+  passwords), with `--no-secrets` and `--json`. Placeholder values and
+  documentation samples are skipped.
+- `commit` (alias `cz`): an interactive Conventional Commits wizard.
+
+### Changed
+
+- Published on PyPI as `commit-shield`. Both `commit-shield` and
+  `commit-guard` are installed as CLI commands.
+
 ## [0.2.0] - 2026-09-18
 
 The theme of this release is correctness and configurability. v0.1.0 validated
@@ -85,5 +110,7 @@ change the rules without editing the source.
   staged files and oversized blobs, a `commit-msg` hook installer, and
   `pre-commit` framework integration.
 
+[0.3.1]: https://github.com/lui01212/commit-guard/releases/tag/v0.3.1
+[0.3.0]: https://github.com/lui01212/commit-guard/releases/tag/v0.3.0
 [0.2.0]: https://github.com/lui01212/commit-guard/releases/tag/v0.2.0
 [0.1.0]: https://github.com/lui01212/commit-guard/releases/tag/v0.1.0

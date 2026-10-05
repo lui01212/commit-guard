@@ -2,10 +2,10 @@
 
 [![PyPI version](https://img.shields.io/pypi/v/commit-shield.svg)](https://pypi.org/project/commit-shield/)
 [![Python versions](https://img.shields.io/pypi/pyversions/commit-shield.svg)](https://pypi.org/project/commit-shield/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/lui01212/commit-guard/blob/main/LICENSE)
 [![Tests](https://github.com/lui01212/commit-guard/actions/workflows/ci.yml/badge.svg)](https://github.com/lui01212/commit-guard/actions)
 [![good first issues](https://img.shields.io/github/issues/lui01212/commit-guard/good%20first%20issue?label=good%20first%20issues&color=7057ff)](https://github.com/lui01212/commit-guard/issues?q=is%3Aissue+state%3Aopen+label%3A%22good+first+issue%22)
-[![Contributions welcome](https://img.shields.io/badge/contributions-welcome-7057ff)](CONTRIBUTING.md)
+[![Contributions welcome](https://img.shields.io/badge/contributions-welcome-7057ff)](https://github.com/lui01212/commit-guard/blob/main/CONTRIBUTING.md)
 
 **Fast, zero-dependency Git commit message and staged file linter.**
 
@@ -14,7 +14,7 @@ Enforces [Conventional Commits](https://www.conventionalcommits.org/) standards 
 ## Start here: your first contribution
 
 **[Featured beginner issue #8](https://github.com/lui01212/commit-guard/issues/8)**: Add regression tests for multiline commit messages.
-Read [CONTRIBUTING.md](CONTRIBUTING.md) for setup, claiming an issue, and opening a draft PR.
+Read [CONTRIBUTING.md](https://github.com/lui01212/commit-guard/blob/main/CONTRIBUTING.md) for setup, claiming an issue, and opening a draft PR.
 
 Repository: `commit-guard`; PyPI distribution: `commit-shield`; Python import: `commit_guard`.
 Both commit-shield and commit-guard are installed CLI aliases.
@@ -160,10 +160,10 @@ Contributions are warmly welcomed! We have plenty of beginner-friendly tasks:
 - Expanding sensitive file extension detections.
 - Adding localized error messages (Vietnamese, Spanish, etc.).
 
-Please see [CONTRIBUTING.md](CONTRIBUTING.md) for details on how to get started.
+Please see [CONTRIBUTING.md](https://github.com/lui01212/commit-guard/blob/main/CONTRIBUTING.md) for details on how to get started.
 
 ---
 
 ## 📄 License
 
-[MIT License](LICENSE) © 2026 lui01212
+[MIT License](https://github.com/lui01212/commit-guard/blob/main/LICENSE) © 2026 lui01212
