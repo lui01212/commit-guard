@@ -5,6 +5,20 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.1] - 2026-10-15
+
+Maintenance release. No changes to how commit-guard checks commits.
+
+### Changed
+
+- Python 3.14 and 3.15 are now tested in CI and listed as supported. Python
+  3.8 is still supported.
+- The package metadata and the code of conduct no longer list a personal email
+  address. Conduct reports go through GitHub instead.
+- The GitHub Actions used for CI and publishing are pinned to commit SHAs, do
+  not keep the checkout token, and are kept up to date by Dependabot.
+- Development tooling: ruff 0.17.0 and mypy 1.16.1.
+
 ## [0.4.0] - 2026-10-05
 
 ### Fixed
@@ -181,6 +195,7 @@ change the rules without editing the source.
   staged files and oversized blobs, a `commit-msg` hook installer, and
   `pre-commit` framework integration.
 
+[0.4.1]: https://github.com/lui01212/commit-guard/releases/tag/v0.4.1
 [0.4.0]: https://github.com/lui01212/commit-guard/releases/tag/v0.4.0
 [0.3.1]: https://github.com/lui01212/commit-guard/releases/tag/v0.3.1
 [0.3.0]: https://github.com/lui01212/commit-guard/releases/tag/v0.3.0

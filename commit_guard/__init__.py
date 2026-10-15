@@ -5,7 +5,7 @@ commit-shield: Lightweight Git commit message, secret leak and staged file linte
 from commit_guard.checkers import check_commit_message, check_file_path
 from commit_guard.secret_scanner import scan_git_diff, scan_text
 
-__version__ = "0.4.0"
+__version__ = "0.4.1"
 __all__ = [
     "check_commit_message",
     "check_file_path",
