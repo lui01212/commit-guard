@@ -47,12 +47,12 @@ class TestParserAgreement(unittest.TestCase):
         self.assertIs(result["disabled"], False)
 
     def test_tables_and_dotted_keys(self):
-        result = self.assert_agree("[tool.commit-guard]\n" "max_header_len = 80\n")
+        result = self.assert_agree("[tool.commit-guard]\nmax_header_len = 80\n")
         self.assertEqual(result["tool"]["commit-guard"]["max_header_len"], 80)
 
     def test_arrays(self):
         result = self.assert_agree(
-            'types = ["feat", "fix", "chore"]\n' "limits = [1, 2, 3]\n" "empty = []\n"
+            'types = ["feat", "fix", "chore"]\nlimits = [1, 2, 3]\nempty = []\n'
         )
         self.assertEqual(result["types"], ["feat", "fix", "chore"])
         self.assertEqual(result["limits"], [1, 2, 3])
@@ -60,16 +60,13 @@ class TestParserAgreement(unittest.TestCase):
 
     def test_multi_line_array(self):
         result = self.assert_agree(
-            "types = [\n" '    "feat",\n' '    "fix",\n' '    "docs",\n' "]\n"
+            'types = [\n    "feat",\n    "fix",\n    "docs",\n]\n'
         )
         self.assertEqual(result["types"], ["feat", "fix", "docs"])
 
     def test_comments_are_stripped(self):
         result = self.assert_agree(
-            "# leading comment\n"
-            "max_header_len = 80  # trailing comment\n"
-            "\n"
-            'name = "x"\n'
+            '# leading comment\nmax_header_len = 80  # trailing comment\n\nname = "x"\n'
         )
         self.assertEqual(result["max_header_len"], 80)
         self.assertEqual(result["name"], "x")
@@ -88,7 +85,7 @@ class TestParserAgreement(unittest.TestCase):
         self.assertEqual(result["text"], 'a\tb\nc\\d"e')
 
     def test_blank_and_whitespace_lines(self):
-        result = self.assert_agree("\n   \n" "key = 1\n" "\n")
+        result = self.assert_agree("\n   \nkey = 1\n\n")
         self.assertEqual(result, {"key": 1})
 
 
